@@ -22,24 +22,43 @@ def loadRatings(ratingstablename, ratingsfilepath, openconnection):
 		f.close()
 		for lines in content_list:
 			cur.execute('INSERT INTO '+ ratingstablename + ' VALUES (%s, %s, %s)',(lines[0],lines[1],lines[2]))
-	print("worked")
 
-	#conn.commit()
-	
-    #pass # Remove this once you are done with implementation
-
+			
 
 def rangePartition(ratingstablename, numberofpartitions, openconnection):
-    pass # Remove this once you are done with implementation
-
+	cur = openconnection.cursor()
+	cur.execute('WITH horizontal_fragmentation_uniform(
+		    SELECT * FROM ' + ratingstablename + ' LIMIT ' + numberofpartitions +';)')	
+	
+	
 
 def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
-    pass # Remove this once you are done with implementation
+	cur = openconnection.cursor()
+	
+	i = cur.execute('SELECT COUNT(ratingstablename)')
+	for i in numberofpartitions:
+  			cur.execute('WITH round_robin+str(i)(
+				    SELECT * FROM ' + ratingstablename + ' LIMIT = 1';)
+	i -= numberofpartitions		
+	while i > 0:
+		for j in numberofpartitions:
+  			cur.execute('INSERT INTO round_robin+str(j)(
+				    SELECT * FROM ' + ratingstablename + ' WHERE ratings.userid = i)
+		i -= numberofpartitions
+	
+	cur.execute('WITH round_robin_total(
+	for k in numberofpartitions:
+		SELECT * FROM ' + round_robin+str(k)
+		    
+	+';')
 
-
+				    
 def roundRobinInsert(ratingstablename, userid, itemid, rating, openconnection):
-    pass # Remove this once you are done with implementation
-
+	cur = openconnection.cursor
+	cur.execute('INSERT INTO '+ ratingstablename+'(*) 'SELECT * FROM '+ round_robin_total)
+		    
+				    
+				    
 
 def rangeInsert(ratingstablename, userid, itemid, rating, openconnection):
     pass # Remove this once you are done with implementation
