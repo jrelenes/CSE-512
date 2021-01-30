@@ -9,9 +9,7 @@ def getOpenConnection(user='postgres', password='1234', dbname='postgres'):
 
 def loadRatings(ratingstablename, ratingsfilepath, openconnection):
 	cur = openconnection.cursor()
-	cur.execute('CREATE TABLE ratings98(userid integer, movieid integer, rating float);')
-	cur.execute('CREATE TABLE ratings89(userid integer, movieid integer, rating float);')
-	cur.execute('CREATE TABLE ratings98(userid integer, movieid integer, rating float);')
+	cur.execute('CREATE TABLE ratings(userid integer, movieid integer, rating float);')
 	
 	with open(ratingsfilepath, 'r') as f:
 		content = f.readlines()
