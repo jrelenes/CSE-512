@@ -8,68 +8,59 @@ def getOpenConnection(user='postgres', password='1234', dbname='postgres'):
 
 
 def loadRatings(ratingstablename, ratingsfilepath, openconnection):
-	cur = openconnection.cursor()
-	cur.execute('CREATE TABLE ratings(userid integer, movieid integer, rating float);')
-	
-	with open(ratingsfilepath, 'r') as f:
-		content = f.readlines()
-		content_list = []
-		for line in content:
-		    columns = line.split('::')
-		    column_3 = []
-		    column_3 = [columns[0],columns[1],columns[2]]
-		    content_list.append(column_3)
-		f.close()
-		for lines in content_list:
-			cur.execute('INSERT INTO '+ ratingstablename + ' VALUES (%s, %s, %s)',(lines[0],lines[1],lines[2]))
-
-			
+    cur = openconnection.cursor()
+    cur.execute("CREATE TABLE "+ str(ratingstablename)+" (userid integer PRIMARY KEY, movieid integer, rating float);")
+    #with open(ratingsfilepath, 'r') as f:
+    #    for line in f.readlines():
+    #        columns = line.split('::')
+    #        #cur.execute('INSERT INTO ' + ratingstablename + ' VALUES (%s, %s, %s)', (columns[0], columns[1], columns[2]))
+    #    f.close()
 
 def rangePartition(ratingstablename, numberofpartitions, openconnection):
-	cur = openconnection.cursor()
-	cur.execute('WITH horizontal_fragmentation_uniform(
-		    SELECT * FROM ' + ratingstablename + ' LIMIT ' + numberofpartitions +';)')	
-	
-	
+    # cur = openconnection.cursor()
+    # cur.execute('WITH horizontal_fragmentation_uniform(
+    #	    SELECT * FROM ' + ratingstablename + ' LIMIT ' + numberofpartitions +';)')
+    pass  # Remove this once you are done with implementation
+
 
 def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
-	cur = openconnection.cursor()
-	
-	i = cur.execute('SELECT COUNT(ratingstablename)')
-	for i in numberofpartitions:
-  			cur.execute('WITH round_robin+str(i)(
-				    SELECT * FROM ' + ratingstablename + ' LIMIT = 1';)
-	i -= numberofpartitions		
-	while i > 0:
-		for j in numberofpartitions:
-  			cur.execute('INSERT INTO round_robin+str(j)(
-				    SELECT * FROM ' + ratingstablename + ' WHERE ratings.userid = i)
-		i -= numberofpartitions
-	
-	cur.execute('WITH round_robin_total(
-	for k in numberofpartitions:
-		SELECT * FROM ' + round_robin+str(k)
-		    
-	+';')
+    # cur = openconnection.cursor()
 
-				    
+    # i = cur.execute('SELECT COUNT(ratingstablename)')
+    # for i in numberofpartitions:
+    #		cur.execute('WITH round_robin+str(i)(
+    #			    SELECT * FROM ' + ratingstablename + ' LIMIT = 1';)
+    # i -= numberofpartitions
+    # while i > 0:
+    #	for j in numberofpartitions:
+    #		cur.execute('INSERT INTO round_robin+str(j)(
+    #			    SELECT * FROM ' + ratingstablename + ' WHERE ratings.userid = i)
+    #	i -= numberofpartitions
+
+    # cur.execute('WITH round_robin_total(
+    # for k in numberofpartitions:
+    #	SELECT * FROM ' + round_robin+str(k)
+
+    # +';')
+    pass  # Remove this once you are done with implementation
+
+
 def roundRobinInsert(ratingstablename, userid, itemid, rating, openconnection):
-	cur = openconnection.cursor
-	cur.execute('INSERT INTO '+ ratingstablename+'(*) 'SELECT * FROM '+ round_robin_total)
-		    
-				    
-				    
+    # cur = openconnection.cursor
+    # cur.execute('INSERT INTO '+ ratingstablename+'(*) 'SELECT * FROM '+ round_robin_total)
+    pass  # Remove this once you are done with implementation
+
 
 def rangeInsert(ratingstablename, userid, itemid, rating, openconnection):
-    pass # Remove this once you are done with implementation
+    pass  # Remove this once you are done with implementation
 
 
 def rangeQuery(ratingMinValue, ratingMaxValue, openconnection, outputPath):
-    pass #Remove this once you are done with implementation
+    pass  # Remove this once you are done with implementation
 
 
 def pointQuery(ratingValue, openconnection, outputPath):
-    pass # Remove this once you are done with implementation
+    pass  # Remove this once you are done with implementation
 
 
 def createDB(dbname='dds_assignment1'):
@@ -95,6 +86,7 @@ def createDB(dbname='dds_assignment1'):
     cur.close()
     con.close()
 
+
 def deleteTables(ratingstablename, openconnection):
     try:
         cursor = openconnection.cursor()
@@ -117,21 +109,9 @@ def deleteTables(ratingstablename, openconnection):
     finally:
         if cursor:
             cursor.close()
- 
+
 
 ratingstablename = 'ratings'
-ratingsfilepath = '/home/not-yours/Documents/Assignment1/ml-10M100K/'+ratingstablename+'.dat'
-            
+ratingsfilepath = '/home/not-yours/Documents/ml-10M100K/' + ratingstablename + '.dat'
+
 loadRatings(ratingstablename, ratingsfilepath, getOpenConnection())
-
-
-
-
-
-
-
-
-
-
-
-
