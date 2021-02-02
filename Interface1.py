@@ -9,40 +9,53 @@ def getOpenConnection(user='postgres', password='1234', dbname='postgres'):
 
 def loadRatings(ratingstablename, ratingsfilepath, openconnection):
     cur = openconnection.cursor()
-    cur.execute("CREATE TABLE "+ str(ratingstablename)+" (userid integer PRIMARY KEY, movieid integer, rating float);")
-    #with open(ratingsfilepath, 'r') as f:
-    #    for line in f.readlines():
-    #        columns = line.split('::')
-    #        #cur.execute('INSERT INTO ' + ratingstablename + ' VALUES (%s, %s, %s)', (columns[0], columns[1], columns[2]))
-    #    f.close()
+    cur.execute("CREATE TABLE "+ratingstablename+ " (userid int, movieid int, rating float);")
+    with open(ratingsfilepath, 'r') as f:
+        for line in f.readlines():
+            columns = line.split('::')
+            cur.execute('INSERT INTO ' + ratingstablename + ' VALUES (%s, %s, %s)', (columns[0], columns[1], columns[2]))
+        f.close()
+
+    openconnection.commit()
+
 
 def rangePartition(ratingstablename, numberofpartitions, openconnection):
-    # cur = openconnection.cursor()
-    # cur.execute('WITH horizontal_fragmentation_uniform(
-    #	    SELECT * FROM ' + ratingstablename + ' LIMIT ' + numberofpartitions +';)')
-    pass  # Remove this once you are done with implementation
-
+     cur = openconnection.cursor()
+     cur.execute('SELECT COUNT(*) FROM ' + ratingstablename)
+     p = cur.fetchall()[0][0]
+     if p % numberofpartitions == 0:
+         const = int(p / numberofpartitions)
+         skip = 0
+         last = p - const
+         for i in range(numberofpartitions):
+          cur.execute('CREATE TABLE rangePartition'+str(i)+'(userid int, movieid int, rating float)')
+          openconnection.commit()
+          cur.execute('INSERT INTO rangePartition'+str(i) +' SELECT * FROM ' + ratingstablename+' OFFSET '+str(skip)+' LIMIT '+str(const)+';')
+          openconnection.commit()
+          skip += const
+     else:
+         print('The table count is odd')
 
 def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
-    # cur = openconnection.cursor()
+     cur = openconnection.cursor()
 
-    # i = cur.execute('SELECT COUNT(ratingstablename)')
-    # for i in numberofpartitions:
-    #		cur.execute('WITH round_robin+str(i)(
-    #			    SELECT * FROM ' + ratingstablename + ' LIMIT = 1';)
-    # i -= numberofpartitions
-    # while i > 0:
-    #	for j in numberofpartitions:
-    #		cur.execute('INSERT INTO round_robin+str(j)(
-    #			    SELECT * FROM ' + ratingstablename + ' WHERE ratings.userid = i)
-    #	i -= numberofpartitions
+     cur.execute('SELECT COUNT(*) FROM '+str(ratingstablename))
+     i = cur.fetchall()[0][0]
+     skip = 0
+     for k in range(numberofpartitions):
+            cur.execute('CREATE TABLE round_robin'+str(k)+'(userid int, movieid int, rating float)')
+            openconnection.commit()
+     while i > 0:
+        for j in range(numberofpartitions):
+            cur.execute('INSERT INTO round_robin'+str(j)+' SELECT * FROM ' + ratingstablename+ ' LIMIT 1 OFFSET '+str(skip))
+            skip += 1
+            openconnection.commit()
+        i -= numberofpartitions
 
     # cur.execute('WITH round_robin_total(
     # for k in numberofpartitions:
-    #	SELECT * FROM ' + round_robin+str(k)
-
-    # +';')
-    pass  # Remove this once you are done with implementation
+    #	SELECT * FROM ' + round_robin+str(k) +';')
+    #pass  # Remove this once you are done with implementation
 
 
 def roundRobinInsert(ratingstablename, userid, itemid, rating, openconnection):
@@ -113,5 +126,10 @@ def deleteTables(ratingstablename, openconnection):
 
 ratingstablename = 'ratings'
 ratingsfilepath = '/home/not-yours/Documents/ml-10M100K/' + ratingstablename + '.dat'
-
-loadRatings(ratingstablename, ratingsfilepath, getOpenConnection())
+# conn = getOpenConnection()
+# cur = conn.cursor()
+#loadRatings(ratingstablename, ratingsfilepath, getOpenConnection())
+rangePartition(ratingstablename,6,getOpenConnection())
+# print(cur.execute("SELECT * FROM test;"))
+# print(cur.fetchall())
+#roundRobinPartition(ratingstablename,6,getOpenConnection())
