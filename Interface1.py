@@ -76,22 +76,28 @@ def rangeQuery(ratingMinValue, ratingMaxValue, openconnection, outputPath):
     global RROBIN_TABLE_PREFIX
     global RANGE_TABLE_PREFIX
     cur = openconnection.cursor()
-    #cur.execute('CREATE TABLE output (PartitionName varchar, UserID int, MovieID int, Rating int);')
-    #openconnection.commit()
 
-    for i in range(RROBIN_TABLE_PREFIX):
-        cur.execute('INSERT INTO output (UserID,MovieID, Rating ) SELECT * FROM round_robin_ratings_part'+str(i)+';')
-        cur.execute('UPDATE output SET PartitionName=%s WHERE PartitionName IS NULL', ('round_robin_ratings_part'+str(i),))
-        openconnection.commit()
-    for i in range(RANGE_TABLE_PREFIX):
-        cur.execute('INSERT INTO output (UserID,MovieID, Rating ) SELECT * FROM range_ratings_part'+str(i)+';')
-        cur.execute('UPDATE output SET PartitionName=%s WHERE PartitionName IS NULL', ('range_ratings_part'+str(i),))
-        openconnection.commit()
-
-    cur.execute('SELECT * FROM output WHERE Rating >= '+str(ratingMinValue)+' AND Rating <= '+str(ratingMaxValue))
-    sql = "COPY (SELECT * FROM output_point_query) TO STDOUT WITH CSV DELIMITER ','"
     with open("/home/not-yours/Documents/Assignment1/table.txt", "w") as file:
-        cur.copy_expert(sql, file)
+        for i in range(RROBIN_TABLE_PREFIX):
+            name = "'round_robin_ratings_part"+str(i)+"'"
+            cur.execute('ALTER TABLE round_robin_ratings_part'+str(i)+' ADD COLUMN table_name VARCHAR default '+ name)
+            openconnection.commit()
+            sql = "COPY (WITH temp AS (SELECT table_name, userid, movieid, rating FROM round_robin_ratings_part"+str(i)+") SELECT * from temp) TO STDOUT WITH CSV DELIMITER ','"
+            #print(cur.fetchall())
+            #sql = "COPY (SELECT * FROM round_robin_ratings_part"+str(i)+") TO STDOUT WITH CSV DELIMITER ','"
+            cur.copy_expert(sql, file)
+        #for i in range(RROBIN_TABLE_PREFIX):
+        #    cur.execute('WITH temp AS (SELECT * FROM round_robin_ratings_part'+str(i)+'), temp2 AS (SELECT * FROM empty'
+        #    ') SELECT userid from temp UNION SELECT userid from temp')
+        #    sql = "COPY (SELECT * FROM round_robin_ratings_part"+str(i)+") TO STDOUT WITH CSV DELIMITER ','"
+        #    cur.copy_expert(sql, file)
+
+        #for i in range(RANGE_TABLE_PREFIX):
+
+        #for i in range(RANGE_TABLE_PREFIX):
+    #    cur.execute('INSERT INTO output (UserID,MovieID, Rating ) SELECT * FROM range_ratings_part'+str(i)+';')
+
+    #cur.execute('SELECT * FROM output WHERE Rating >= '+str(ratingMinValue)+' AND Rating <= '+str(ratingMaxValue))
 
 def pointQuery(ratingValue, openconnection, outputPath):
     global RROBIN_TABLE_PREFIX
@@ -172,7 +178,7 @@ ratingsfilepath = '/home/not-yours/Documents/ml-10M100K/' + ratingstablename + '
 #rangePartition(ratingstablename,6,getOpenConnection())
 # print(cur.execute("SELECT * FROM test;"))
 # print(cur.fetchall())
-#roundRobinPartition(ratingstablename,6,getOpenConnection())
+roundRobinPartition(ratingstablename,6,getOpenConnection())
 #roundRobinInsert(ratingstablename,1,364,1,getOpenConnection())
-#rangeQuery(3,4,getOpenConnection(),'/home/not-yours/Documents/ml-10M100K/')
-pointQuery(5,getOpenConnection(),'/home/not-yours/Documents/ml-10M100K/')
+rangeQuery(3,4,getOpenConnection(),'/home/not-yours/Documents/ml-10M100K/')
+#pointQuery(5,getOpenConnection(),'/home/not-yours/Documents/ml-10M100K/')
