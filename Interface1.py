@@ -30,7 +30,7 @@ def loadRatings(ratingstablename, ratingsfilepath, openconnection):
     with open(ratingsfilepath, 'r') as f:
         for line in f.readlines():
             columns = line.split('::')
-            cur.execute('INSERT INTO ' + ratingstablename + ' VALUES (%s, %s, %s)', (columns[0], columns[1], columns[2]))
+            cur.execute('INSERT INTO ' + ratingstablename + ' VALUES (%s, %s, %s)', (int(columns[0]), int(columns[1]), float(columns[2])))
         f.close()
 
     openconnection.commit()
@@ -38,10 +38,9 @@ def loadRatings(ratingstablename, ratingsfilepath, openconnection):
 
 def rangePartition(ratingstablename, numberofpartitions, openconnection):
      cur = openconnection.cursor()
+     global RANGE_TABLE_PREFIX
      cur.execute("INSERT INTO metadata_table VALUES ('rangePartition', "+str(numberofpartitions)+")")
-     cur.execute('SELECT COUNT(*) FROM ' + ratingstablename)
      init = float(5 / numberofpartitions)
-     p = cur.fetchall()[0][0]
      lower = 0
      upper = init
      for i in range(numberofpartitions):
@@ -51,6 +50,11 @@ def rangePartition(ratingstablename, numberofpartitions, openconnection):
             cur.execute('INSERT INTO range_ratings_part'+str(i) +' SELECT * FROM ' + ratingstablename+' WHERE rating >= '+str(lower)+'AND rating <= '+str(upper)+' ORDER BY rating ASC;')
           else:
             cur.execute('INSERT INTO range_ratings_part'+str(i) +' SELECT * FROM ' + ratingstablename+' WHERE rating > '+str(lower)+'AND rating <= '+str(upper)+' ORDER BY rating ASC;')
+
+          if i < numberofpartitions - 1:
+            RANGE_TABLE_PREFIX = i + 1
+          else:
+            RANGE_TABLE_PREFIX = 0
 
           openconnection.commit()
           lower = upper
@@ -100,9 +104,39 @@ def roundRobinInsert(ratingstablename, userid, itemid, rating, openconnection):
 
 
 def rangeInsert(ratingstablename, userid, itemid, rating, openconnection):
-    #cur = openconnection.cursor()
-    #cur.execute("SELECT * FROM pg_catalog.pg_tables")
-    pass  # Remove this once you are done with implementation
+    cur = openconnection.cursor()
+    global RANGE_TABLE_PREFIX
+    cur.execute("INSERT INTO " + str(ratingstablename) + " VALUES (" + str(userid) + "," + str(itemid) + "," + str(
+        rating) + ");")
+    openconnection.commit()
+
+    cur.execute("SELECT number_of_partitions FROM metadata_table WHERE table_name = 'rangePartition'")
+    numberofpartitions = cur.fetchall()[0][0]
+    init = float(5 / numberofpartitions)
+    lower = 0
+    upper = init
+    for i in range(numberofpartitions):
+        if i == 0 and rating >= lower and rating <= upper:
+            cur.execute('INSERT INTO range_ratings_part' + str(
+                RANGE_TABLE_PREFIX) + ' (userid, movieid, rating) VALUES (' + str(userid) + ',' + str(itemid) + ',' + str(rating) + ')')
+        elif rating > lower and rating <= upper:
+            cur.execute('INSERT INTO range_ratings_part' + str(
+                RANGE_TABLE_PREFIX) + ' (userid, movieid, rating) VALUES (' + str(userid) + ',' + str(itemid) + ',' + str(rating) + ')')
+
+        if i < numberofpartitions - 1:
+            RANGE_TABLE_PREFIX = i + 1
+        else:
+            RANGE_TABLE_PREFIX = 0
+
+        openconnection.commit()
+        lower = upper
+        upper += init
+
+
+    if RANGE_TABLE_PREFIX < numberofpartitions:
+        RANGE_TABLE_PREFIX = RANGE_TABLE_PREFIX + 1
+    else:
+        RANGE_TABLE_PREFIX = 0
 
 
 def rangeQuery(ratingMinValue, ratingMaxValue, openconnection, outputPath):
@@ -201,15 +235,3 @@ def deleteTables(ratingstablename, openconnection):
             cursor.close()
 
 
-#ratingstablename = 'ratings'
-#ratingsfilepath = '/home/not-yours/Documents/ml-10M100K/' + ratingstablename + '.dat'
-# conn = getOpenConnection()
-# cur = conn.cursor()
-#loadRatings(ratingstablename, ratingsfilepath, getOpenConnection())
-#rangePartition(ratingstablename,6,getOpenConnection())
-# print(cur.execute("SELECT * FROM test;"))
-# print(cur.fetchall())
-#roundRobinPartition(ratingstablename,6,getOpenConnection())
-#roundRobinInsert(ratingstablename,1,364,1,getOpenConnection())
-#rangeQuery(3,4,getOpenConnection(),'/home/not-yours/Documents/ml-10M100K/test_range.txt')
-#pointQuery(5,getOpenConnection(),'/home/not-yours/Documents/ml-10M100K/')
