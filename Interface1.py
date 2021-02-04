@@ -1,6 +1,8 @@
 import psycopg2
 import os
 import sys
+RANGE_TABLE_PREFIX = 0
+RROBIN_TABLE_PREFIX = 0
 
 #RangeRating -- create table to track metadata
 #input and outputh path is provided
@@ -59,6 +61,7 @@ def rangePartition(ratingstablename, numberofpartitions, openconnection):
 
 def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
      cur = openconnection.cursor()
+     global RROBIN_TABLE_PREFIX
      cur.execute("INSERT INTO metadata_table VALUES ('roundRobinPartition', " + str(numberofpartitions) + ")")
      cur.execute('SELECT COUNT(*) FROM '+str(ratingstablename))
      i = cur.fetchall()[0][0]
@@ -68,17 +71,32 @@ def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
             openconnection.commit()
      while i > 0:
         for j in range(numberofpartitions):
-            cur.execute('INSERT INTO round_robin_ratings_part'+str(j)+' SELECT * FROM ' + ratingstablename+ ' ORDER BY rating ASC LIMIT 1 OFFSET '+str(skip))
+            cur.execute('INSERT INTO round_robin_ratings_part'+str(j)+' SELECT * FROM ' + ratingstablename+ ' LIMIT 1 OFFSET '+str(skip))
+
+            if j < numberofpartitions - 1:
+                RROBIN_TABLE_PREFIX = j + 1
+            else:
+                RROBIN_TABLE_PREFIX = 0
 
             skip += 1
             openconnection.commit()
         i -= numberofpartitions
 
 def roundRobinInsert(ratingstablename, userid, itemid, rating, openconnection):
-     cur = openconnection.cursor
-     cur.execute(''' select count(*) from information_schema.tables where tables.table_name LIKE '%round_robin_ratings_part%'; ''')
-     #print(cur.fetchall())
-     #cur.execute('INSERT INTO '+ ratingstablename+ ' VALUES (%d,%d,%f), ('+userid+','+ itemid+','+rating+');')
+    cur = openconnection.cursor()
+    global RROBIN_TABLE_PREFIX
+    cur.execute("INSERT INTO "+str(ratingstablename)+" VALUES ("+str(userid)+","+str(itemid)+","+str(rating)+");")
+    openconnection.commit()
+    cur.execute("SELECT number_of_partitions FROM metadata_table WHERE table_name = 'roundRobinPartition'")
+    numberofpartitions = cur.fetchall()[0][0]
+    cur.execute("INSERT INTO round_robin_ratings_part" + str(
+                RROBIN_TABLE_PREFIX) + " VALUES ("+str(userid)+","+str(itemid)+","+str(rating)+");")
+    openconnection.commit()
+
+    if RROBIN_TABLE_PREFIX < numberofpartitions:
+        RROBIN_TABLE_PREFIX = RROBIN_TABLE_PREFIX + 1
+    else:
+        RROBIN_TABLE_PREFIX = 0
 
 
 def rangeInsert(ratingstablename, userid, itemid, rating, openconnection):
