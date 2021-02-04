@@ -1,9 +1,21 @@
 import psycopg2
 import os
 import sys
-RANGE_TABLE_PREFIX = 3
-RROBIN_TABLE_PREFIX = 3
 
+#RangeRating -- create table to track metadata
+#input and outputh path is provided
+#range partition 1partition (0- less that 1 rating)
+#2 paritions (0- less that 1 rating) and (1 - less than 2 ratings ...etc)
+
+#two scenarios (or not an and) not both conditions(2)
+# load -> partition ->insert -> delete all(rr)
+# load -> partition ->insert -> delete all(range)
+# for queries the main table types are not empty but a specific partition type can be empty
+# both query congtain rr and range simultaneously
+# WHEN LOADING THE TABLE ORDER DOESNT MATTER
+# 5 MAX RATING / PARTITIONS THEN ADD FROM 0 TO 5 BY THE THRESHOL EXP 5 rating max / 10 partitions rating = 0.5 step per partion max
+# 0 - <0.5, 0.5> - 1 ...etc
+ 
 def getOpenConnection(user='postgres', password='1234', dbname='postgres'):
     return psycopg2.connect("dbname='" + dbname + "' user='" + user + "' host='localhost' password='" + password + "'")
 
@@ -11,6 +23,8 @@ def getOpenConnection(user='postgres', password='1234', dbname='postgres'):
 def loadRatings(ratingstablename, ratingsfilepath, openconnection):
     cur = openconnection.cursor()
     cur.execute("CREATE TABLE "+ratingstablename+ " (userid int, movieid int, rating float);")
+    cur.execute('CREATE TABLE metadata_table (table_name VARCHAR, number_of_partitions int);')
+
     with open(ratingsfilepath, 'r') as f:
         for line in f.readlines():
             columns = line.split('::')
@@ -22,29 +36,30 @@ def loadRatings(ratingstablename, ratingsfilepath, openconnection):
 
 def rangePartition(ratingstablename, numberofpartitions, openconnection):
      cur = openconnection.cursor()
+     cur.execute("INSERT INTO metadata_table VALUES ('rangePartition', "+str(numberofpartitions)+")")
      cur.execute('SELECT COUNT(*) FROM ' + ratingstablename)
-     global RANGE_TABLE_PREFIX
-     if RANGE_TABLE_PREFIX < numberofpartitions:
-        RANGE_TABLE_PREFIX = numberofpartitions
+     init = float(5 / numberofpartitions)
      p = cur.fetchall()[0][0]
-     if p % numberofpartitions == 0:
-         const = int(p / numberofpartitions)
-         skip = 0
-         last = p - const
-         for i in range(numberofpartitions):
+     lower = 0
+     upper = init
+     for i in range(numberofpartitions):
           cur.execute('CREATE TABLE range_ratings_part'+str(i)+'(userid int, movieid int, rating float)')
           openconnection.commit()
-          cur.execute('INSERT INTO range_ratings_part'+str(i) +' SELECT * FROM ' + ratingstablename+' ORDER BY rating ASC OFFSET '+str(skip)+' LIMIT '+str(const)+';')
+          if i == 0:
+            cur.execute('INSERT INTO range_ratings_part'+str(i) +' SELECT * FROM ' + ratingstablename+' WHERE rating >= '+str(lower)+'AND rating <= '+str(upper)+' ORDER BY rating ASC;')
+          else:
+            cur.execute('INSERT INTO range_ratings_part'+str(i) +' SELECT * FROM ' + ratingstablename+' WHERE rating > '+str(lower)+'AND rating <= '+str(upper)+' ORDER BY rating ASC;')
+
           openconnection.commit()
-          skip += const
-     else:
-         print('The table count is odd')
+          lower = upper
+          upper += init
+
+
+
 
 def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
      cur = openconnection.cursor()
-     global RROBIN_TABLE_PREFIX
-     if RROBIN_TABLE_PREFIX < numberofpartitions:
-        RROBIN_TABLE_PREFIX = numberofpartitions
+     cur.execute("INSERT INTO metadata_table VALUES ('roundRobinPartition', " + str(numberofpartitions) + ")")
      cur.execute('SELECT COUNT(*) FROM '+str(ratingstablename))
      i = cur.fetchall()[0][0]
      skip = 0
@@ -73,19 +88,22 @@ def rangeInsert(ratingstablename, userid, itemid, rating, openconnection):
 
 
 def rangeQuery(ratingMinValue, ratingMaxValue, openconnection, outputPath):
-    global RROBIN_TABLE_PREFIX
-    global RANGE_TABLE_PREFIX
     cur = openconnection.cursor()
+    cur.execute("SELECT number_of_partitions FROM metadata_table WHERE table_name = 'rangePartition' ")
+    range_number = int(cur.fetchall()[0][0])
 
-    with open("/home/not-yours/Documents/Assignment1/table.txt", "w") as file:
-        for i in range(RROBIN_TABLE_PREFIX):
+    cur.execute("SELECT number_of_partitions FROM metadata_table WHERE table_name = 'roundRobinPartition' ")
+    rr_number = int(cur.fetchall()[0][0])
+
+    with open(outputPath, "w") as file:
+        for i in range(rr_number):
             name = "'round_robin_ratings_part"+str(i)+"'"
             cur.execute('ALTER TABLE round_robin_ratings_part'+str(i)+' ADD COLUMN table_name1 VARCHAR default '+ name)
             openconnection.commit()
             sql = "COPY (WITH temp AS (SELECT table_name1, userid, movieid, " \
                   "rating FROM round_robin_ratings_part"+str(i)+") SELECT * from temp WHERE rating >="+str(ratingMinValue)+" AND rating <= "+str(ratingMaxValue)+") TO STDOUT WITH CSV DELIMITER ','"
             cur.copy_expert(sql, file)
-        for i in range(RANGE_TABLE_PREFIX):
+        for i in range(range_number):
             name = "'range_ratings_part"+str(i)+"'"
             cur.execute('ALTER TABLE range_ratings_part'+str(i)+' ADD COLUMN table_name2 VARCHAR default '+ name)
             openconnection.commit()
@@ -93,12 +111,15 @@ def rangeQuery(ratingMinValue, ratingMaxValue, openconnection, outputPath):
             cur.copy_expert(sql, file)
 
 def pointQuery(ratingValue, openconnection, outputPath):
-    global RROBIN_TABLE_PREFIX
-    global RANGE_TABLE_PREFIX
     cur = openconnection.cursor()
+    cur.execute("SELECT number_of_partitions FROM metadata_table WHERE table_name = 'rangePartition' ")
+    range_number = int(cur.fetchall()[0][0])
 
-    with open("/home/not-yours/Documents/Assignment1/table2.txt", "w") as file:
-        for i in range(RROBIN_TABLE_PREFIX):
+    cur.execute("SELECT number_of_partitions FROM metadata_table WHERE table_name = 'roundRobinPartition' ")
+    rr_number = int(cur.fetchall()[0][0])
+
+    with open(outputPath, "w") as file:
+        for i in range(rr_number):
             name = "'round_robin_ratings_part" + str(i) + "'"
             cur.execute(
                 'ALTER TABLE round_robin_ratings_part' + str(i) + ' ADD COLUMN table_name3 VARCHAR default ' + name)
@@ -107,7 +128,7 @@ def pointQuery(ratingValue, openconnection, outputPath):
                   "rating FROM round_robin_ratings_part" + str(i) + ") SELECT * from temp WHERE rating =" + str(
                 ratingValue)+") TO STDOUT WITH CSV DELIMITER ','"
             cur.copy_expert(sql, file)
-        for i in range(RANGE_TABLE_PREFIX):
+        for i in range(range_number):
             name = "'range_ratings_part" + str(i) + "'"
             cur.execute('ALTER TABLE range_ratings_part' + str(i) + ' ADD COLUMN table_name4 VARCHAR default ' + name)
             openconnection.commit()
@@ -162,8 +183,8 @@ def deleteTables(ratingstablename, openconnection):
             cursor.close()
 
 
-ratingstablename = 'ratings'
-ratingsfilepath = '/home/not-yours/Documents/ml-10M100K/' + ratingstablename + '.dat'
+#ratingstablename = 'ratings'
+#ratingsfilepath = '/home/not-yours/Documents/ml-10M100K/' + ratingstablename + '.dat'
 # conn = getOpenConnection()
 # cur = conn.cursor()
 #loadRatings(ratingstablename, ratingsfilepath, getOpenConnection())
@@ -172,5 +193,5 @@ ratingsfilepath = '/home/not-yours/Documents/ml-10M100K/' + ratingstablename + '
 # print(cur.fetchall())
 #roundRobinPartition(ratingstablename,6,getOpenConnection())
 #roundRobinInsert(ratingstablename,1,364,1,getOpenConnection())
-#rangeQuery(3,4,getOpenConnection(),'/home/not-yours/Documents/ml-10M100K/')
-pointQuery(5,getOpenConnection(),'/home/not-yours/Documents/ml-10M100K/')
+#rangeQuery(3,4,getOpenConnection(),'/home/not-yours/Documents/ml-10M100K/test_range.txt')
+#pointQuery(5,getOpenConnection(),'/home/not-yours/Documents/ml-10M100K/')
