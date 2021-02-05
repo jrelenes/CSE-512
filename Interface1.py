@@ -22,17 +22,18 @@ def getOpenConnection(user='postgres', password='1234', dbname='postgres'):
 
 def loadRatings(ratingstablename, ratingsfilepath, openconnection):
     cur = openconnection.cursor()
-    cur.execute("CREATE TABLE "+ratingstablename+ " (userid int, movieid int, rating float);")
+    cur.execute("SELECT * FROM information_schema.tables WHERE table_name=%s", (ratingstablename,))
+    cur.execute(
+        "CREATE TABLE " + ratingstablename + " (userid integer, trash_1 varchar, movieid integer, trash_2 varchar, rating decimal(3,1), trash_3 varchar, trash_4 varchar);")
     cur.execute('CREATE TABLE metadata_table (table_name VARCHAR, number_of_partitions int, index int DEFAULT 0);')
 
-    with open(ratingsfilepath, 'r') as f:
-        for line in f.readlines():
-            columns = line.split('::')
-            cur.execute('INSERT INTO ' + ratingstablename + ' VALUES (%s, %s, %s)', (int(columns[0]), int(columns[1]), float(columns[2])))
-        f.close()
+    with open(ratingsfilepath) as f:
+        cur.copy_from(f, ratingstablename, sep=":")
 
+    cur.execute(
+        "ALTER TABLE " + ratingstablename + " DROP COLUMN trash_1, DROP COLUMN trash_2, DROP COLUMN trash_3, DROP COLUMN trash_4;")
     openconnection.commit()
-
+    cur.close()
 
 def rangePartition(ratingstablename, numberofpartitions, openconnection):
      cur = openconnection.cursor()
@@ -41,7 +42,7 @@ def rangePartition(ratingstablename, numberofpartitions, openconnection):
      lower = 0
      upper = init
      for i in range(numberofpartitions):
-          cur.execute('CREATE TABLE range_ratings_part'+str(i)+'(userid int, movieid int, rating float)')
+          cur.execute('CREATE TABLE range_ratings_part'+str(i)+'(userid int, movieid int, rating decimal(3,1))')
           openconnection.commit()
           if i == 0:
             cur.execute('INSERT INTO range_ratings_part'+str(i) +' SELECT * FROM ' + ratingstablename+' WHERE rating >= '+str(lower)+'AND rating <= '+str(upper)+' ORDER BY rating ASC;')
@@ -67,7 +68,7 @@ def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
      i = cur.fetchall()[0][0]
      skip = 0
      for k in range(numberofpartitions):
-            cur.execute('CREATE TABLE round_robin_ratings_part'+str(k)+'(userid int, movieid int, rating float)')
+            cur.execute('CREATE TABLE round_robin_ratings_part'+str(k)+'(userid int, movieid int, rating decimal(3,1))')
             openconnection.commit()
      while i > 0:
         for j in range(numberofpartitions):
