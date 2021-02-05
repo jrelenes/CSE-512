@@ -1,8 +1,6 @@
 import psycopg2
 import os
 import sys
-#RANGE_TABLE_PREFIX = 0
-#RROBIN_TABLE_PREFIX = 0
 
 #RangeRating -- create table to track metadata
 #input and outputh path is provided
@@ -38,7 +36,6 @@ def loadRatings(ratingstablename, ratingsfilepath, openconnection):
 
 def rangePartition(ratingstablename, numberofpartitions, openconnection):
      cur = openconnection.cursor()
-     #global RANGE_TABLE_PREFIX
      cur.execute("INSERT INTO metadata_table VALUES ('rangePartition', "+str(numberofpartitions)+")")
      init = float(5 / numberofpartitions)
      lower = 0
@@ -51,14 +48,11 @@ def rangePartition(ratingstablename, numberofpartitions, openconnection):
           else:
             cur.execute('INSERT INTO range_ratings_part'+str(i) +' SELECT * FROM ' + ratingstablename+' WHERE rating > '+str(lower)+'AND rating <= '+str(upper)+' ORDER BY rating ASC;')
 
-          #cur.execute("SELECT index FROM metadata_table WHERE table_name = 'rangePartition' ")
-          #index = cur.fetchall()[0][0]
+          openconnection.commit()
 
           if i < numberofpartitions - 1:
-            #RANGE_TABLE_PREFIX = i + 1
             cur.execute("UPDATE metadata_table SET index = " +str(i + 1)+" WHERE table_name = 'rangePartition'")
           else:
-            #RANGE_TABLE_PREFIX = 0
             cur.execute("UPDATE metadata_table SET index = " + str(0)+" WHERE table_name = 'rangePartition'")
 
           openconnection.commit()
@@ -66,11 +60,8 @@ def rangePartition(ratingstablename, numberofpartitions, openconnection):
           upper += init
 
 
-
-
 def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
      cur = openconnection.cursor()
-     #global RROBIN_TABLE_PREFIX
      cur.execute("INSERT INTO metadata_table VALUES ('roundRobinPartition', " + str(numberofpartitions) + ")")
      cur.execute('SELECT COUNT(*) FROM '+str(ratingstablename))
      i = cur.fetchall()[0][0]
@@ -83,10 +74,8 @@ def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
             cur.execute('INSERT INTO round_robin_ratings_part'+str(j)+' SELECT * FROM ' + ratingstablename+ ' LIMIT 1 OFFSET '+str(skip))
 
             if j < numberofpartitions - 1:
-                #RROBIN_TABLE_PREFIX = j + 1
                 cur.execute("UPDATE metadata_table SET index = " + str(j + 1) + " WHERE table_name = 'roundRobinPartition'")
             else:
-                #RROBIN_TABLE_PREFIX = 0
                 cur.execute("UPDATE metadata_table SET index = " + str(0) + " WHERE table_name = 'roundRobinPartition'")
 
             skip += 1
@@ -95,7 +84,6 @@ def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
 
 def roundRobinInsert(ratingstablename, userid, itemid, rating, openconnection):
     cur = openconnection.cursor()
-    #global RROBIN_TABLE_PREFIX
     cur.execute("INSERT INTO "+str(ratingstablename)+" VALUES ("+str(userid)+","+str(itemid)+","+str(rating)+");")
     openconnection.commit()
     cur.execute("SELECT number_of_partitions FROM metadata_table WHERE table_name = 'roundRobinPartition'")
@@ -107,17 +95,14 @@ def roundRobinInsert(ratingstablename, userid, itemid, rating, openconnection):
     openconnection.commit()
 
     if index < numberofpartitions:
-        #RROBIN_TABLE_PREFIX = RROBIN_TABLE_PREFIX + 1
         cur.execute("UPDATE metadata_table SET index = " + str(index + 1) + " WHERE table_name = 'roundRobinPartition'")
     else:
-        #RROBIN_TABLE_PREFIX = 0
         cur.execute("UPDATE metadata_table SET index = " + str(0) + " WHERE table_name = 'roundRobinPartition'")
 
     openconnection.commit()
 
 def rangeInsert(ratingstablename, userid, itemid, rating, openconnection):
     cur = openconnection.cursor()
-    #global RANGE_TABLE_PREFIX
     cur.execute("INSERT INTO " + str(ratingstablename) + " VALUES (" + str(userid) + "," + str(itemid) + "," + str(
         rating) + ");")
     openconnection.commit()
@@ -128,26 +113,27 @@ def rangeInsert(ratingstablename, userid, itemid, rating, openconnection):
     lower = 0
     upper = init
     cur.execute("SELECT index FROM metadata_table WHERE table_name = 'rangePartition' ")
-    index = cur.fetchall()[0][0]
+    index = int(cur.fetchall()[0][0])
     for i in range(numberofpartitions):
-        if i == 0 and rating >= lower and rating <= upper:
+        if i == 0 and rating >= lower and rating <= init:
             cur.execute('INSERT INTO range_ratings_part' + str(
-                index) + ' (userid, movieid, rating) VALUES (' + str(userid) + ',' + str(itemid) + ',' + str(rating) + ')')
+                i) + ' (userid, movieid, rating) VALUES (' + str(userid) + ',' + str(itemid) + ',' + str(rating) + ')')
+            openconnection.commit()
+            cur.execute("SELECT * FROM range_ratings_part" + str(index))
         elif rating > lower and rating <= upper:
             cur.execute('INSERT INTO range_ratings_part' + str(
-                index) + ' (userid, movieid, rating) VALUES (' + str(userid) + ',' + str(itemid) + ',' + str(rating) + ')')
+                i) + ' (userid, movieid, rating) VALUES (' + str(userid) + ',' + str(itemid) + ',' + str(rating) + ')')
+            openconnection.commit()
+            cur.execute("SELECT * FROM range_ratings_part" + str(index))
 
-        if i < numberofpartitions:
-            #RANGE_TABLE_PREFIX = i + 1
+        if i < numberofpartitions - 1:
             cur.execute("UPDATE metadata_table SET index = " + str(i + 1) + " WHERE table_name = 'rangePartition'")
         else:
-            #RANGE_TABLE_PREFIX = 0
             cur.execute("UPDATE metadata_table SET index = " + str(0) + " WHERE table_name = 'rangePartition'")
 
         openconnection.commit()
         lower = upper
         upper += init
-
 
 def rangeQuery(ratingMinValue, ratingMaxValue, openconnection, outputPath):
     cur = openconnection.cursor()
@@ -243,5 +229,4 @@ def deleteTables(ratingstablename, openconnection):
     finally:
         if cursor:
             cursor.close()
-
 
