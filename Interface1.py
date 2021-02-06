@@ -23,8 +23,9 @@ def getOpenConnection(user='postgres', password='1234', dbname='postgres'):
 def loadRatings(ratingstablename, ratingsfilepath, openconnection):
     cur = openconnection.cursor()
     cur.execute("SELECT * FROM information_schema.tables WHERE table_name=%s", (ratingstablename,))
+
     cur.execute(
-        "CREATE TABLE " + ratingstablename + " (userid integer, trash_1 varchar, movieid integer, trash_2 varchar, rating decimal(2,1), trash_3 varchar, trash_4 varchar);")
+        "CREATE TABLE " + ratingstablename + " (userid integer, trash_1 varchar, movieid integer, trash_2 varchar, rating numeric(2,1), trash_3 varchar, trash_4 varchar);")
     cur.execute('CREATE TABLE metadata_table (table_name VARCHAR, number_of_partitions int, index int DEFAULT 0);')
 
     with open(ratingsfilepath) as f:
@@ -32,6 +33,8 @@ def loadRatings(ratingstablename, ratingsfilepath, openconnection):
 
     cur.execute(
         "ALTER TABLE " + ratingstablename + " DROP COLUMN trash_1, DROP COLUMN trash_2, DROP COLUMN trash_3, DROP COLUMN trash_4;")
+
+
     openconnection.commit()
     cur.close()
 
@@ -149,15 +152,30 @@ def rangeQuery(ratingMinValue, ratingMaxValue, openconnection, outputPath):
             name = "'round_robin_ratings_part"+str(i)+"'"
             cur.execute('ALTER TABLE round_robin_ratings_part'+str(i)+' ADD COLUMN table_name1 VARCHAR default '+ name)
             openconnection.commit()
-            sql = "COPY (WITH temp AS (SELECT table_name1, userid, movieid, " \
-                  "rating FROM round_robin_ratings_part"+str(i)+") SELECT * from temp WHERE rating >="+str(ratingMinValue)+" AND rating <= "+str(ratingMaxValue)+") TO STDOUT WITH CSV DELIMITER ','"
+
+            #removes 0.0
+            cur.execute("CREATE TABLE range_clean (userid integer, movieid integer, rating VARCHAR)")
+            cur.execute("INSERT INTO range_clean (userid, movieid, rating) SELECT userid, movieid, rating FROM round_robin_ratings_part"+ str(i)+" WHERE rating >="+str(ratingMinValue)+" AND rating <= "+str(ratingMaxValue)+";")
+            cur.execute("UPDATE range_clean SET rating = '0' WHERE rating = '0.0'")
+            sql = "COPY (SELECT * from range_clean) TO STDOUT WITH CSV DELIMITER ','"
             cur.copy_expert(sql, file)
+            cur.execute("DROP TABLE range_clean;")
+
         for i in range(range_number):
             name = "'range_ratings_part"+str(i)+"'"
             cur.execute('ALTER TABLE range_ratings_part'+str(i)+' ADD COLUMN table_name2 VARCHAR default '+ name)
             openconnection.commit()
-            sql = "COPY (WITH temp AS (SELECT table_name2, userid, movieid, rating FROM range_ratings_part"+str(i)+" WHERE rating >= "+str(ratingMinValue)+" AND rating <= "+str(ratingMaxValue)+" ) SELECT * from temp) TO STDOUT WITH CSV DELIMITER ','"
+
+            # removes 0.0
+            cur.execute("CREATE TABLE range_clean (userid integer, movieid integer, rating VARCHAR)")
+            cur.execute(
+                "INSERT INTO range_clean (userid, movieid, rating) SELECT userid, movieid, rating FROM range_ratings_part" + str(
+                    i) + " WHERE rating >=" + str(ratingMinValue) + " AND rating <= " + str(ratingMaxValue) + ";")
+            cur.execute("UPDATE range_clean SET rating = '0' WHERE rating = '0.0'")
+            sql = "COPY (SELECT * from range_clean) TO STDOUT WITH CSV DELIMITER ','"
             cur.copy_expert(sql, file)
+            cur.execute("DROP TABLE range_clean;")
+
 
 def pointQuery(ratingValue, openconnection, outputPath):
     cur = openconnection.cursor()
@@ -173,17 +191,33 @@ def pointQuery(ratingValue, openconnection, outputPath):
             cur.execute(
                 'ALTER TABLE round_robin_ratings_part' + str(i) + ' ADD COLUMN table_name3 VARCHAR default ' + name)
             openconnection.commit()
-            sql = "COPY (WITH temp AS (SELECT table_name3, userid, movieid, " \
-                  "rating FROM round_robin_ratings_part" + str(i) + ") SELECT * from temp WHERE rating =" + str(
-                ratingValue)+") TO STDOUT WITH CSV DELIMITER ','"
+
+            # removes 0.0
+            cur.execute("CREATE TABLE range_clean (userid integer, movieid integer, rating VARCHAR)")
+            cur.execute(
+                "INSERT INTO range_clean (userid, movieid, rating) SELECT userid, movieid, rating FROM round_robin_ratings_part" + str(
+                    i) + " WHERE rating =" + str(ratingValue))
+            cur.execute("UPDATE range_clean SET rating = '0' WHERE rating = '0.0'")
+            sql = "COPY (SELECT * from range_clean) TO STDOUT WITH CSV DELIMITER ','"
             cur.copy_expert(sql, file)
+            cur.execute("DROP TABLE range_clean;")
+
+
         for i in range(range_number):
             name = "'range_ratings_part" + str(i) + "'"
             cur.execute('ALTER TABLE range_ratings_part' + str(i) + ' ADD COLUMN table_name4 VARCHAR default ' + name)
             openconnection.commit()
-            sql = "COPY (WITH temp AS (SELECT table_name4, userid, movieid, rating FROM range_ratings_part" + str(
-                i) + " WHERE rating = " + str(ratingValue)+") SELECT * from temp) TO STDOUT WITH CSV DELIMITER ','"
+
+            # removes 0.0
+            cur.execute("CREATE TABLE range_clean (userid integer, movieid integer, rating VARCHAR)")
+            cur.execute(
+                "INSERT INTO range_clean (userid, movieid, rating) SELECT userid, movieid, rating FROM range_ratings_part" + str(
+                    i) + " WHERE rating =" + str(ratingValue))
+            cur.execute("UPDATE range_clean SET rating = '0' WHERE rating = '0.0'")
+            sql = "COPY (SELECT * from range_clean) TO STDOUT WITH CSV DELIMITER ','"
             cur.copy_expert(sql, file)
+            cur.execute("DROP TABLE range_clean;")
+
 def createDB(dbname='dds_assignment1'):
     """
     We create a DB by connecting to the default user and database of Postgres
@@ -231,3 +265,23 @@ def deleteTables(ratingstablename, openconnection):
         if cursor:
             cursor.close()
 
+
+
+#def deletePartitions(openconnection):
+
+#    cur = openconnection.cursor()
+#    cur.execute("SELECT number_of_partitions FROM metadata_table WHERE table_name = 'rangePartition' ")
+#     rangePartition = int(cur.fetchall()[0][0])
+#     print(rangePartition)
+#     cur.execute("SELECT number_of_partitions FROM metadata_table WHERE table_name = 'roundRobinPartition'")
+#     roundRobinPartition = int(cur.fetchall()[0][0])
+#     print(roundRobinPartition)
+#     cur.execute("DROP TABLE metadata_table;")
+#
+#     for i in range(roundRobinPartition - 1):
+       # cursor.execute("DROP TABLE round_robin_ratings_part"+str(i)+";")
+    #
+    # for j in range(rangePartition - 1):
+       # cursor.execute("DROP TABLE range_ratings_part"+str(j)+";")
+    #
+    # cur.close()
