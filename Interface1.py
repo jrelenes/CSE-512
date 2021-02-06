@@ -26,7 +26,7 @@ def loadRatings(ratingstablename, ratingsfilepath, openconnection):
 
     cur.execute(
         "CREATE TABLE " + ratingstablename + " (userid integer, trash_1 varchar, movieid integer, trash_2 varchar, rating float, trash_3 varchar, trash_4 varchar);")
-    cur.execute('CREATE TABLE metadata_table (table_name VARCHAR, number_of_partitions int, index int DEFAULT 0);')
+    cur.execute('CREATE TABLE metadata_table (table_name VARCHAR, number_of_partitions integer, index integer DEFAULT 0);')
 
     with open(ratingsfilepath) as f:
         cur.copy_from(f, ratingstablename, sep=":")
@@ -44,7 +44,7 @@ def rangePartition(ratingstablename, numberofpartitions, openconnection):
      lower = 0
      upper = init
      for i in range(numberofpartitions):
-          cur.execute('CREATE TABLE range_ratings_part'+str(i)+'(userid int, movieid int, rating float)')
+          cur.execute('CREATE TABLE range_ratings_part'+str(i)+'(userid integer, movieid integer, rating float)')
           openconnection.commit()
           if i == 0:
             cur.execute('INSERT INTO range_ratings_part'+str(i) +' SELECT * FROM ' + ratingstablename+' WHERE rating >= '+str(lower)+'AND rating <= '+str(upper)+' ORDER BY rating ASC;')
@@ -70,7 +70,7 @@ def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
      i = cur.fetchall()[0][0]
      skip = 0
      for k in range(numberofpartitions):
-            cur.execute('CREATE TABLE round_robin_ratings_part'+str(k)+'(userid int, movieid int, rating float)')
+            cur.execute('CREATE TABLE round_robin_ratings_part'+str(k)+'(userid integer, movieid integer, rating float)')
             openconnection.commit()
      while i > 0:
         for j in range(numberofpartitions):
@@ -116,7 +116,7 @@ def rangeInsert(ratingstablename, userid, itemid, rating, openconnection):
     lower = 0
     upper = init
     cur.execute("SELECT index FROM metadata_table WHERE table_name = 'rangePartition' ")
-    index = int(cur.fetchall()[0][0])
+    index = cur.fetchall()[0][0]
     for i in range(numberofpartitions):
         if i == 0 and rating >= lower and rating <= init:
             cur.execute('INSERT INTO range_ratings_part' + str(
@@ -141,10 +141,10 @@ def rangeInsert(ratingstablename, userid, itemid, rating, openconnection):
 def rangeQuery(ratingMinValue, ratingMaxValue, openconnection, outputPath):
     cur = openconnection.cursor()
     cur.execute("SELECT number_of_partitions FROM metadata_table WHERE table_name = 'rangePartition' ")
-    range_number = int(cur.fetchall()[0][0])
+    range_number = cur.fetchall()[0][0]
 
     cur.execute("SELECT number_of_partitions FROM metadata_table WHERE table_name = 'roundRobinPartition' ")
-    rr_number = int(cur.fetchall()[0][0])
+    rr_number = cur.fetchall()[0][0]
 
     with open(outputPath, "w") as file:
         for i in range(rr_number):
@@ -173,10 +173,10 @@ def rangeQuery(ratingMinValue, ratingMaxValue, openconnection, outputPath):
 def pointQuery(ratingValue, openconnection, outputPath):
     cur = openconnection.cursor()
     cur.execute("SELECT number_of_partitions FROM metadata_table WHERE table_name = 'rangePartition' ")
-    range_number = int(cur.fetchall()[0][0])
+    range_number = cur.fetchall()[0][0]
 
     cur.execute("SELECT number_of_partitions FROM metadata_table WHERE table_name = 'roundRobinPartition' ")
-    rr_number = int(cur.fetchall()[0][0])
+    rr_number = cur.fetchall()[0][0]
 
     with open(outputPath, "w") as file:
         for i in range(rr_number):
