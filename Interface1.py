@@ -44,6 +44,9 @@ def rangePartition(ratingstablename, numberofpartitions, openconnection):
      lower = 0
      upper = init
      for i in range(numberofpartitions):
+          if i == numberofpartitions - 1 and upper < 5:
+              upper = round(upper)
+
           cur.execute('CREATE TABLE range_ratings_part'+str(i)+'(userid integer, movieid integer, rating float)')
           openconnection.commit()
           if i == 0:
@@ -61,6 +64,8 @@ def rangePartition(ratingstablename, numberofpartitions, openconnection):
           openconnection.commit()
           lower = upper
           upper += init
+
+
 
 
 def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
@@ -104,6 +109,7 @@ def roundRobinInsert(ratingstablename, userid, itemid, rating, openconnection):
 
     openconnection.commit()
 
+
 def rangeInsert(ratingstablename, userid, itemid, rating, openconnection):
     cur = openconnection.cursor()
     cur.execute("INSERT INTO " + str(ratingstablename) + " VALUES (" + str(userid) + "," + str(itemid) + "," + str(
@@ -118,21 +124,29 @@ def rangeInsert(ratingstablename, userid, itemid, rating, openconnection):
     cur.execute("SELECT index FROM metadata_table WHERE table_name = 'rangePartition' ")
     index = cur.fetchall()[0][0]
     for i in range(numberofpartitions):
+        if i == numberofpartitions - 1 and upper < 5:
+            upper = round(upper)
         if i == 0 and rating >= lower and rating <= init:
             cur.execute('INSERT INTO range_ratings_part' + str(
                 i) + ' (userid, movieid, rating) VALUES (' + str(userid) + ',' + str(itemid) + ',' + str(rating) + ')')
             openconnection.commit()
-            cur.execute("SELECT * FROM range_ratings_part" + str(index))
+            if i < numberofpartitions - 1:
+                cur.execute("UPDATE metadata_table SET index = " + str(i + 1) + " WHERE table_name = 'rangePartition'")
+                break
+            else:
+                cur.execute("UPDATE metadata_table SET index = " + str(0) + " WHERE table_name = 'rangePartition'")
+                break
+
         elif rating > lower and rating <= upper:
             cur.execute('INSERT INTO range_ratings_part' + str(
                 i) + ' (userid, movieid, rating) VALUES (' + str(userid) + ',' + str(itemid) + ',' + str(rating) + ')')
             openconnection.commit()
-            cur.execute("SELECT * FROM range_ratings_part" + str(index))
-
-        if i < numberofpartitions - 1:
-            cur.execute("UPDATE metadata_table SET index = " + str(i + 1) + " WHERE table_name = 'rangePartition'")
-        else:
-            cur.execute("UPDATE metadata_table SET index = " + str(0) + " WHERE table_name = 'rangePartition'")
+            if i < numberofpartitions - 1:
+                cur.execute("UPDATE metadata_table SET index = " + str(i + 1) + " WHERE table_name = 'rangePartition'")
+                break
+            else:
+                cur.execute("UPDATE metadata_table SET index = " + str(0) + " WHERE table_name = 'rangePartition'")
+                break
 
         openconnection.commit()
         lower = upper
