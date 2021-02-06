@@ -154,8 +154,8 @@ def rangeQuery(ratingMinValue, ratingMaxValue, openconnection, outputPath):
             openconnection.commit()
 
             #removes 0.0
-            cur.execute("CREATE TABLE range_clean (userid integer, movieid integer, rating VARCHAR)")
-            cur.execute("INSERT INTO range_clean (userid, movieid, rating) SELECT userid, movieid, rating FROM round_robin_ratings_part"+ str(i)+" WHERE rating >="+str(ratingMinValue)+" AND rating <= "+str(ratingMaxValue)+";")
+            cur.execute("CREATE TABLE range_clean (name varchar, userid integer, movieid integer, rating VARCHAR)")
+            cur.execute("INSERT INTO range_clean (name, userid, movieid, rating) SELECT table_name1,userid, movieid, rating FROM round_robin_ratings_part"+ str(i)+" WHERE rating >="+str(ratingMinValue)+" AND rating <= "+str(ratingMaxValue)+";")
             cur.execute("UPDATE range_clean SET rating = '0' WHERE rating = '0.0'")
             sql = "COPY (SELECT * from range_clean) TO STDOUT WITH CSV DELIMITER ','"
             cur.copy_expert(sql, file)
@@ -167,9 +167,9 @@ def rangeQuery(ratingMinValue, ratingMaxValue, openconnection, outputPath):
             openconnection.commit()
 
             # removes 0.0
-            cur.execute("CREATE TABLE range_clean (userid integer, movieid integer, rating VARCHAR)")
+            cur.execute("CREATE TABLE range_clean (name varchar,userid integer, movieid integer, rating VARCHAR)")
             cur.execute(
-                "INSERT INTO range_clean (userid, movieid, rating) SELECT userid, movieid, rating FROM range_ratings_part" + str(
+                "INSERT INTO range_clean (name,userid, movieid, rating) SELECT table_name2,userid, movieid, rating FROM range_ratings_part" + str(
                     i) + " WHERE rating >=" + str(ratingMinValue) + " AND rating <= " + str(ratingMaxValue) + ";")
             cur.execute("UPDATE range_clean SET rating = '0' WHERE rating = '0.0'")
             sql = "COPY (SELECT * from range_clean) TO STDOUT WITH CSV DELIMITER ','"
@@ -193,9 +193,9 @@ def pointQuery(ratingValue, openconnection, outputPath):
             openconnection.commit()
 
             # removes 0.0
-            cur.execute("CREATE TABLE range_clean (userid integer, movieid integer, rating VARCHAR)")
+            cur.execute("CREATE TABLE range_clean (name varchar, userid integer, movieid integer, rating VARCHAR)")
             cur.execute(
-                "INSERT INTO range_clean (userid, movieid, rating) SELECT userid, movieid, rating FROM round_robin_ratings_part" + str(
+                "INSERT INTO range_clean (name, userid, movieid, rating) SELECT table_name3, userid, movieid, rating FROM round_robin_ratings_part" + str(
                     i) + " WHERE rating =" + str(ratingValue))
             cur.execute("UPDATE range_clean SET rating = '0' WHERE rating = '0.0'")
             sql = "COPY (SELECT * from range_clean) TO STDOUT WITH CSV DELIMITER ','"
@@ -209,9 +209,9 @@ def pointQuery(ratingValue, openconnection, outputPath):
             openconnection.commit()
 
             # removes 0.0
-            cur.execute("CREATE TABLE range_clean (userid integer, movieid integer, rating VARCHAR)")
+            cur.execute("CREATE TABLE range_clean (name varchar, userid integer, movieid integer, rating VARCHAR)")
             cur.execute(
-                "INSERT INTO range_clean (userid, movieid, rating) SELECT userid, movieid, rating FROM range_ratings_part" + str(
+                "INSERT INTO range_clean (name, userid, movieid, rating) SELECT table_name4,userid, movieid, rating FROM range_ratings_part" + str(
                     i) + " WHERE rating =" + str(ratingValue))
             cur.execute("UPDATE range_clean SET rating = '0' WHERE rating = '0.0'")
             sql = "COPY (SELECT * from range_clean) TO STDOUT WITH CSV DELIMITER ','"
