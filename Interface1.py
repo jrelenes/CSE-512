@@ -151,17 +151,11 @@ def rangeQuery(ratingMinValue, ratingMaxValue, openconnection, outputPath):
             name = "'round_robin_ratings_part"+str(i)+"'"
             cur.execute('ALTER TABLE round_robin_ratings_part'+str(i)+' ADD COLUMN table_name1 VARCHAR default '+ name)
             openconnection.commit()
-
-            #removes 0.0
-            cur.execute("CREATE TABLE range_clean (name varchar, userid integer, movieid integer, rating VARCHAR)")
-            cur.execute("INSERT INTO range_clean (name, userid, movieid, rating) SELECT table_name1,userid, movieid, rating FROM round_robin_ratings_part"+ str(i)+" WHERE rating >="+str(ratingMinValue)+" AND rating <= "+str(ratingMaxValue)+";")
-            cur.execute("UPDATE range_clean SET rating = '0' WHERE rating = '0.0'")
-            sql = "COPY (SELECT * from range_clean) TO STDOUT WITH CSV DELIMITER ','"
+            sql = "COPY (WITH temp AS (SELECT table_name1, userid, movieid, " \
+                  "rating FROM round_robin_ratings_part" + str(i) + ") SELECT * from temp WHERE rating >=" + str(
+                ratingMinValue) + " AND rating <= " + str(ratingMaxValue) + ") TO STDOUT WITH CSV DELIMITER ','"
             cur.copy_expert(sql, file)
-            cur.execute("DROP TABLE range_clean;")
             cur.execute('ALTER TABLE round_robin_ratings_part'+str(i)+' DROP table_name1;')
-
-
 
 
         for i in range(range_number):
@@ -169,15 +163,10 @@ def rangeQuery(ratingMinValue, ratingMaxValue, openconnection, outputPath):
             cur.execute('ALTER TABLE range_ratings_part'+str(i)+' ADD COLUMN table_name2 VARCHAR default '+ name)
             openconnection.commit()
 
-            # removes 0.0
-            cur.execute("CREATE TABLE range_clean (name varchar,userid integer, movieid integer, rating VARCHAR)")
-            cur.execute(
-                "INSERT INTO range_clean (name,userid, movieid, rating) SELECT table_name2,userid, movieid, rating FROM range_ratings_part" + str(
-                    i) + " WHERE rating >=" + str(ratingMinValue) + " AND rating <= " + str(ratingMaxValue) + ";")
-            cur.execute("UPDATE range_clean SET rating = '0' WHERE rating = '0.0'")
-            sql = "COPY (SELECT * from range_clean) TO STDOUT WITH CSV DELIMITER ','"
+            sql = "COPY (WITH temp AS (SELECT table_name2, userid, movieid, rating FROM range_ratings_part" + str(
+                i) + " WHERE rating >= " + str(ratingMinValue) + " AND rating <= " + str(
+                ratingMaxValue) + " ) SELECT * from temp) TO STDOUT WITH CSV DELIMITER ','"
             cur.copy_expert(sql, file)
-            cur.execute("DROP TABLE range_clean;")
             cur.execute('ALTER TABLE range_ratings_part'+str(i)+' DROP table_name2;')
 
 
@@ -196,15 +185,10 @@ def pointQuery(ratingValue, openconnection, outputPath):
                 'ALTER TABLE round_robin_ratings_part' + str(i) + ' ADD COLUMN table_name3 VARCHAR default ' + name)
             openconnection.commit()
 
-            # removes 0.0
-            cur.execute("CREATE TABLE range_clean (name varchar, userid integer, movieid integer, rating VARCHAR)")
-            cur.execute(
-                "INSERT INTO range_clean (name, userid, movieid, rating) SELECT table_name3, userid, movieid, rating FROM round_robin_ratings_part" + str(
-                    i) + " WHERE rating =" + str(ratingValue))
-            cur.execute("UPDATE range_clean SET rating = '0' WHERE rating = '0.0'")
-            sql = "COPY (SELECT * from range_clean) TO STDOUT WITH CSV DELIMITER ','"
+            sql = "COPY (WITH temp AS (SELECT table_name3, userid, movieid, " \
+                  "rating FROM round_robin_ratings_part" + str(i) + ") SELECT * from temp WHERE rating =" + str(
+                ratingValue) + ") TO STDOUT WITH CSV DELIMITER ','"
             cur.copy_expert(sql, file)
-            cur.execute("DROP TABLE range_clean;")
             cur.execute('ALTER TABLE round_robin_ratings_part'+str(i)+' DROP table_name3;')
 
 
@@ -214,16 +198,11 @@ def pointQuery(ratingValue, openconnection, outputPath):
             cur.execute('ALTER TABLE range_ratings_part' + str(i) + ' ADD COLUMN table_name4 VARCHAR default ' + name)
             openconnection.commit()
 
-            # removes 0.0
-            cur.execute("CREATE TABLE range_clean (name varchar, userid integer, movieid integer, rating VARCHAR)")
-            cur.execute(
-                "INSERT INTO range_clean (name, userid, movieid, rating) SELECT table_name4,userid, movieid, rating FROM range_ratings_part" + str(
-                    i) + " WHERE rating =" + str(ratingValue))
-            cur.execute("UPDATE range_clean SET rating = '0' WHERE rating = '0.0'")
-            sql = "COPY (SELECT * from range_clean) TO STDOUT WITH CSV DELIMITER ','"
+            sql = "COPY (WITH temp AS (SELECT table_name4, userid, movieid, rating FROM range_ratings_part" + str(
+                i) + " WHERE rating = " + str(ratingValue) + ") SELECT * from temp) TO STDOUT WITH CSV DELIMITER ','"
             cur.copy_expert(sql, file)
-            cur.execute("DROP TABLE range_clean;")
             cur.execute('ALTER TABLE range_ratings_part'+str(i)+' DROP table_name4;')
+
 
 
 def createDB(dbname='dds_assignment1'):
