@@ -40,7 +40,7 @@ def loadRatings(ratingstablename, ratingsfilepath, openconnection):
 def rangePartition(ratingstablename, numberofpartitions, openconnection):
      cur = openconnection.cursor()
      cur.execute("INSERT INTO metadata_table VALUES ('rangePartition', "+str(numberofpartitions)+")")
-     init = 5 / numberofpartitions
+     init = float(5 / numberofpartitions)
      lower = 0
      upper = init
      for i in range(numberofpartitions):
@@ -118,7 +118,7 @@ def rangeInsert(ratingstablename, userid, itemid, rating, openconnection):
 
     cur.execute("SELECT number_of_partitions FROM metadata_table WHERE table_name = 'rangePartition'")
     numberofpartitions = cur.fetchall()[0][0]
-    init = 5 / numberofpartitions
+    init = float(5 / numberofpartitions)
     lower = 0
     upper = init
     cur.execute("SELECT index FROM metadata_table WHERE table_name = 'rangePartition' ")
