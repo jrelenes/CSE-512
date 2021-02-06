@@ -25,7 +25,7 @@ def loadRatings(ratingstablename, ratingsfilepath, openconnection):
     cur.execute("SELECT * FROM information_schema.tables WHERE table_name=%s", (ratingstablename,))
 
     cur.execute(
-        "CREATE TABLE " + ratingstablename + " (userid integer, trash_1 varchar, movieid integer, trash_2 varchar, rating numeric(2,1), trash_3 varchar, trash_4 varchar);")
+        "CREATE TABLE " + ratingstablename + " (userid integer, trash_1 varchar, movieid integer, trash_2 varchar, rating float, trash_3 varchar, trash_4 varchar);")
     cur.execute('CREATE TABLE metadata_table (table_name VARCHAR, number_of_partitions int, index int DEFAULT 0);')
 
     with open(ratingsfilepath) as f:
@@ -33,7 +33,6 @@ def loadRatings(ratingstablename, ratingsfilepath, openconnection):
 
     cur.execute(
         "ALTER TABLE " + ratingstablename + " DROP COLUMN trash_1, DROP COLUMN trash_2, DROP COLUMN trash_3, DROP COLUMN trash_4;")
-
 
     openconnection.commit()
     cur.close()
@@ -45,7 +44,7 @@ def rangePartition(ratingstablename, numberofpartitions, openconnection):
      lower = 0
      upper = init
      for i in range(numberofpartitions):
-          cur.execute('CREATE TABLE range_ratings_part'+str(i)+'(userid int, movieid int, rating decimal(2,1))')
+          cur.execute('CREATE TABLE range_ratings_part'+str(i)+'(userid int, movieid int, rating float)')
           openconnection.commit()
           if i == 0:
             cur.execute('INSERT INTO range_ratings_part'+str(i) +' SELECT * FROM ' + ratingstablename+' WHERE rating >= '+str(lower)+'AND rating <= '+str(upper)+' ORDER BY rating ASC;')
@@ -71,7 +70,7 @@ def roundRobinPartition(ratingstablename, numberofpartitions, openconnection):
      i = cur.fetchall()[0][0]
      skip = 0
      for k in range(numberofpartitions):
-            cur.execute('CREATE TABLE round_robin_ratings_part'+str(k)+'(userid int, movieid int, rating decimal(2,1))')
+            cur.execute('CREATE TABLE round_robin_ratings_part'+str(k)+'(userid int, movieid int, rating float)')
             openconnection.commit()
      while i > 0:
         for j in range(numberofpartitions):
@@ -160,6 +159,10 @@ def rangeQuery(ratingMinValue, ratingMaxValue, openconnection, outputPath):
             sql = "COPY (SELECT * from range_clean) TO STDOUT WITH CSV DELIMITER ','"
             cur.copy_expert(sql, file)
             cur.execute("DROP TABLE range_clean;")
+            cur.execute('ALTER TABLE round_robin_ratings_part'+str(i)+' DROP table_name1;')
+
+
+
 
         for i in range(range_number):
             name = "'range_ratings_part"+str(i)+"'"
@@ -175,6 +178,7 @@ def rangeQuery(ratingMinValue, ratingMaxValue, openconnection, outputPath):
             sql = "COPY (SELECT * from range_clean) TO STDOUT WITH CSV DELIMITER ','"
             cur.copy_expert(sql, file)
             cur.execute("DROP TABLE range_clean;")
+            cur.execute('ALTER TABLE range_ratings_part'+str(i)+' DROP table_name2;')
 
 
 def pointQuery(ratingValue, openconnection, outputPath):
@@ -201,6 +205,8 @@ def pointQuery(ratingValue, openconnection, outputPath):
             sql = "COPY (SELECT * from range_clean) TO STDOUT WITH CSV DELIMITER ','"
             cur.copy_expert(sql, file)
             cur.execute("DROP TABLE range_clean;")
+            cur.execute('ALTER TABLE round_robin_ratings_part'+str(i)+' DROP table_name3;')
+
 
 
         for i in range(range_number):
@@ -217,6 +223,8 @@ def pointQuery(ratingValue, openconnection, outputPath):
             sql = "COPY (SELECT * from range_clean) TO STDOUT WITH CSV DELIMITER ','"
             cur.copy_expert(sql, file)
             cur.execute("DROP TABLE range_clean;")
+            cur.execute('ALTER TABLE range_ratings_part'+str(i)+' DROP table_name4;')
+
 
 def createDB(dbname='dds_assignment1'):
     """
