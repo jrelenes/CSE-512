@@ -11,7 +11,6 @@ import threading
 def Sorthelper(cur,i,InputTable,SortingColumnName,OutputTable):
 	#it will be calling for both a min and max number like range parition (use same logic)
 	#The min and max are updated in global table here and the main table log record will be kept centrally
-	cur = openconnection.cursor()
 	cur.execute("INSERT INTO metadata_table VALUES ('rangePartition', "+str(i)+")")
 	cur.execute('CREATE TABLE range_ratings_part'+str(i)+'(userid integer, movieid integer, rating float)')
 	openconnection.commit()
@@ -19,6 +18,9 @@ def Sorthelper(cur,i,InputTable,SortingColumnName,OutputTable):
 		cur.execute('INSERT INTO '+str(OutputTable)+''+str(i) +' SELECT * FROM ' + InputTable+' WHERE rating >= '+str(0)+'AND rating <= '+str(1)+' ORDER BY rating ASC;')
 	else:
 		cur.execute('INSERT INTO '+str(OutputTable)+''+str(i) +' SELECT * FROM ' + InputTable+' WHERE rating > '+str(lower)+'AND rating <= '+str(upper)+' ORDER BY rating ASC;')
+		
+		
+	
 		    
 		    
 		    
@@ -29,13 +31,18 @@ def ParallelSort (InputTable, SortingColumnName, OutputTable, openconnection):
     #the min max is evaluated for the whole table and updated partition 
     #wise and it will have float values ranges exaclty like range partition
     cur.execute("CREATE TABLE "+str(OutputTable)+"();")
-    cur.execute('CREATE TABLE metadata_table (table_name VARCHAR, number_of_partitions integer, index integer DEFAULT 0);')
+    cur.execute('CREATE TABLE metadata_table (lower integer DEFAULT 0,upper integer DEFAULT 1);')
     openconnection.commit()
     cur = openconnection.cursor()
     # thread 1-5 in python for slices 1-5
+	#check min max in the tables in SortingColumnName to make sure the range of each string use range partition
     for i in range(5):
         t = threading.Thread(target=Sorthelper, args=(cur,i,InputTable,SortingColumnName,OutputTable))
         t.start()
+        
+        cur.execute("UPDATE metadata_table SET lower = upper")
+        cur.execute("UPDATE metadata_table SET upper = upper+1")
+    
 
 
 
@@ -50,6 +57,8 @@ def ParallelSort (InputTable, SortingColumnName, OutputTable, openconnection):
 
 def ParallelJoin (InputTable1, InputTable2, Table1JoinColumn, Table2JoinColumn, OutputTable, openconnection):
     #Implement ParallelJoin Here.
+    #same process
+    #range parition for table one and table 2, 5 processors per table
     pass # Remove this once you are done with implementation
 
 
