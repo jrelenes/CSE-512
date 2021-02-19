@@ -8,49 +8,53 @@ import sys
 import threading
 
 # Donot close the connection inside this file i.e. do not perform openconnection.close()        
-def Sorthelper(cur,i,InputTable,SortingColumnName,OutputTable):
+def Sorthelper(cur,i,InputTable,SortingColumnName,OutputTable,j):
 	#it will be calling for both a min and max number like range parition (use same logic)
 	#The min and max are updated in global table here and the main table log record will be kept centrally
-	cur.execute("INSERT INTO metadata_table VALUES ('rangePartition', "+str(i)+")")
-	cur.execute('CREATE TABLE range_ratings_part'+str(i)+'(userid integer, movieid integer, rating float)')
-	openconnection.commit()
-	if i == 0:
+    print("internal")
+    cur.execute("UPDATE metadata_table SET lower = upper")
+    cur.execute("UPDATE metadata_table SET upper = upper+1")
+	if i == 0 :
 		cur.execute('INSERT INTO '+str(OutputTable)+''+str(i) +' SELECT * FROM ' + InputTable+' WHERE rating >= '+str(0)+'AND rating <= '+str(1)+' ORDER BY rating ASC;')
 	else:
 		cur.execute('INSERT INTO '+str(OutputTable)+''+str(i) +' SELECT * FROM ' + InputTable+' WHERE rating > '+str(lower)+'AND rating <= '+str(upper)+' ORDER BY rating ASC;')
 		
 		
-	
-		    
-		    
-		    
-
 def ParallelSort (InputTable, SortingColumnName, OutputTable, openconnection):
     #Implement ParallelSort Here.
     #here the log record gets documented
     #the min max is evaluated for the whole table and updated partition 
     #wise and it will have float values ranges exaclty like range partition
-    cur.execute("CREATE TABLE "+str(OutputTable)+"();")
-    cur.execute('CREATE TABLE metadata_table (lower integer DEFAULT 0,upper integer DEFAULT 1);')
-    openconnection.commit()
     cur = openconnection.cursor()
+    print("here")
+
+    cur.execute("CREATE TABLE "+str(OutputTable)+" (index int);")
+    print("here2")
+    openconnection.commit()
+    cur.execute('CREATE TABLE metadata_table (lower integer DEFAULT 0,upper integer DEFAULT 0);')
+    openconnection.commit()
+    print("here")
+
+    cur.execute("SELECT MAX ("+str(SortingColumnName)+") FROM "+str(InputTable)+";")
+    #cur.execute('SELECT MAX(*) FROM '+str(InputTable))
+    j = int(cur.fetchall()[0][0]/5)
+    print("here")#########
+    cur.execute("UPDATE metadata_table SET upper = '"+str(j)+"'")
     # thread 1-5 in python for slices 1-5
 	#check min max in the tables in SortingColumnName to make sure the range of each string use range partition
+    print("hello")
+    t= []
     for i in range(5):
-        t = threading.Thread(target=Sorthelper, args=(cur,i,InputTable,SortingColumnName,OutputTable))
-        t.start()
-        
-        cur.execute("UPDATE metadata_table SET lower = upper")
-        cur.execute("UPDATE metadata_table SET upper = upper+1")
-    
+        print(i)
+        u = threading.Thread(target=Sorthelper, args=(cur,i,InputTable,SortingColumnName,OutputTable,j))
+        t.append(u)
+        #t.start()
+    p = 0
+    for i in t:
+        i.start()
+        print(p)
+        p += 1
 
-
-
-
-
-
-
-    
     #cur.execute("SELECT * FROM "+str(OutputTable)+";")
     #print(cur.fetchall())
     #pass #Remove this once you are done with implementation
