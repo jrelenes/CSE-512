@@ -7,45 +7,63 @@ import os
 import sys
 import threading
 
-# Donot close the connection inside this file i.e. do not perform openconnection.close()        
-def Sorthelper(cur,i,InputTable,SortingColumnName,OutputTable,j):
-	#it will be calling for both a min and max number like range parition (use same logic)
-	#The min and max are updated in global table here and the main table log record will be kept centrally
-    print(i)
-	#if i == 0 :
-	#	cur.execute('INSERT INTO '+str(OutputTable)+''+str(i) +' SELECT * FROM ' + InputTable+' WHERE rating >= '+str(0)+'AND rating <= '+str(1)+' ORDER BY rating ASC;')
-	#else:
-	#	cur.execute('INSERT INTO '+str(OutputTable)+''+str(i) +' SELECT * FROM ' + InputTable+' WHERE rating > '+str(lower)+'AND rating <= '+str(upper)+' ORDER BY rating ASC;')
-    cur.execute("UPDATE metadata_table SET lower = upper")
-    cur.execute("UPDATE metadata_table SET upper = upper+" + str(j))
-		
+# Donot close the connection inside this file i.e. do not perform openconnection.close()
+def Sorthelper(i, cur,lower,InputTable,SortingColumnName,OutputTable,upper,openconnection,max_val):
+
+    cur.execute("CREATE TABLE " + str(OutputTable)+str(i)+ " (data real);")
+    openconnection.commit()
+
+    if upper == max_val:
+        cur.execute("WITH temp AS (SELECT "+str(SortingColumnName)+" FROM "+str(InputTable)+" "
+        "WHERE "+ str(SortingColumnName)+" >= " + str(float(lower)) + "AND "+str(SortingColumnName)+" "
+        "<= "+str(float(upper))+" ORDER BY "+str(SortingColumnName)+" ASC) INSERT INTO " + str(OutputTable)+str(i) + " SELECT "
+        "* FROM temp ")
+        openconnection.commit()
+
+    else:
+        cur.execute("WITH temp AS (SELECT "+str(SortingColumnName)+" FROM "+str(InputTable)+" "
+        "WHERE "+ str(SortingColumnName)+" >= " + str(float(lower)) + "AND "+str(SortingColumnName)+" "
+        "< "+str(float(upper))+" ORDER BY "+str(SortingColumnName)+") INSERT INTO " + str(OutputTable)+str(i) +
+        " SELECT * FROM temp ")
+        openconnection.commit()
+
+
 def ParallelSort (InputTable, SortingColumnName, OutputTable, openconnection):
-    #Implement ParallelSort Here.
-    #here the log record gets documented
-    #the min max is evaluated for the whole table and updated partition 
-    #wise and it will have float values ranges exaclty like range partition
     cur = openconnection.cursor()
-    cur.execute("CREATE TABLE "+str(OutputTable)+" (index int);")
+    cur.execute("CREATE TABLE "+str(OutputTable)+" (data real);")
     openconnection.commit()
-    cur.execute('CREATE TABLE metadata_table (lower integer DEFAULT 0,upper integer DEFAULT 0);')
-    openconnection.commit()
-
     cur.execute("SELECT MAX ("+str(SortingColumnName)+") FROM "+str(InputTable)+";")
-    #cur.execute('SELECT MAX(*) FROM '+str(InputTable))
-    j = int(cur.fetchall()[0][0]/5)
-    cur.execute("UPDATE metadata_table SET upper = '"+str(j)+"'")
-    # thread 1-5 in python for slices 1-5
-	#check min max in the tables in SortingColumnName to make sure the range of each string use range partition
-    t= []
-    for i in range(5):
-        u = threading.Thread(target=Sorthelper, args=(cur,i,InputTable,SortingColumnName,OutputTable,j))
-        t.append(u)
-    for i in t:
-        i.start()
+    upper = cur.fetchall()[0][0]
+    max_val = upper
+    cur.execute("SELECT MIN ("+str(SortingColumnName)+") FROM "+str(InputTable)+";")
+    lower = cur.fetchall()[0][0]
+    delta = float((upper - lower) / 5)
 
-    #cur.execute("SELECT * FROM "+str(OutputTable)+";")
-    #print(cur.fetchall())
-    #pass #Remove this once you are done with implementation
+    upper = lower + delta
+    t =[]
+    for i in range(1,6):
+        u = threading.Thread(target=Sorthelper, args=(i, cur,lower,InputTable,SortingColumnName,OutputTable,upper,openconnection,max_val))
+        u.start()
+        t.append(u)
+        cur.execute("SELECT MAX (" + str(SortingColumnName) + ") FROM " + str(InputTable) + ";")
+        lower = upper
+        upper += delta
+
+    for i in t:
+        i.join()
+
+    for i in range(1, 6):
+        cur.execute("WITH temp AS (SELECT * FROM " + str(OutputTable)+str(i) + " ) INSERT INTO " + str(OutputTable)+" SELECT * FROM temp ")
+        openconnection.commit()
+        cur.execute("DROP TABLE " + str(OutputTable)+str(i))
+        openconnection.commit()
+
+
+
+
+
+
+
 
 def ParallelJoin (InputTable1, InputTable2, Table1JoinColumn, Table2JoinColumn, OutputTable, openconnection):
     #Implement ParallelJoin Here.
