@@ -30,17 +30,17 @@ def Sorthelper(i,cur,lower,InputTable,SortingColumnName,OutputTable,upper,openco
 
 def Joinhelper(i,cur,lower,InputTable1,InputTable2,Table1JoinColumn,Table2JoinColumn, OutputTable,upper,openconnection,max_val):
 
-    cur.execute("CREATE TABLE " + str(OutputTable)+str(i)+ " (data1 real,data2 real);")
+    cur.execute("CREATE TABLE " + str(OutputTable)+str(i)+ " (data1 varchar,data2 varchar,data3 varchar, data4 varchar, data5 varchar, data6 varchar);")
     openconnection.commit()
     print(i)
     if upper == max_val:
-        cur.execute("WITH temp AS (SELECT "+str(Table1JoinColumn)+", "+str(Table2JoinColumn)+" FROM "+str(InputTable1)+" "
+        cur.execute("WITH temp AS (SELECT * FROM "+str(InputTable1)+" "
         " LEFT JOIN "+str(InputTable2)+" ON "+ str(InputTable1)+"."+str(Table1JoinColumn)+" = "+ str(InputTable2)+"."+str(Table2JoinColumn)+") "
         "INSERT INTO " + str(OutputTable)+str(i) + " SELECT * FROM temp WHERE "+ str(Table1JoinColumn)+" >= "
         "" + str(float(lower)) + "AND "+str(Table1JoinColumn)+" <= "+str(float(upper))+";")
         openconnection.commit()
     else:
-        cur.execute("WITH temp AS (SELECT " + str(Table1JoinColumn) + ", " + str(Table2JoinColumn) + " FROM " + str(
+        cur.execute("WITH temp AS (SELECT * FROM " + str(
             InputTable1) + " LEFT JOIN " + str(InputTable2) + " ON " + str(InputTable1) + "." + str(
             Table1JoinColumn) + " = " + str(InputTable2) + "." + str(Table2JoinColumn) + ") "
             "INSERT INTO " + str(OutputTable) + str(i) + " SELECT * FROM temp WHERE " + str(Table1JoinColumn) + " >= "
@@ -82,7 +82,7 @@ def ParallelJoin (InputTable1, InputTable2, Table1JoinColumn, Table2JoinColumn, 
     #same process
     #range parition for table one and table 2, 5 processors per table
      cur = openconnection.cursor()
-     cur.execute("CREATE TABLE "+str(OutputTable)+" (data1 real, data2 real);")
+     cur.execute("CREATE TABLE "+str(OutputTable)+" (data1 varchar,data2 varchar,data3 varchar, data4 varchar, data5 varchar, data6 varchar);")
      openconnection.commit()
      cur.execute("SELECT MAX ("+str(Table1JoinColumn)+") FROM "+str(InputTable1)+";")
      upper1 = cur.fetchall()[0][0]
