@@ -28,23 +28,18 @@ def Sorthelper(i,cur,lower,InputTable,SortingColumnName,OutputTable,upper,openco
         openconnection.commit()
 
 
-def Joinhelper(i,cur,lower,InputTable1,InputTable2,Table1JoinColumn,Table2JoinColumn, OutputTable,upper,openconnection,max_val,table_column):
+def Joinhelper(i,cur,lower,InputTable1,InputTable2,Table1JoinColumn,Table2JoinColumn, OutputTable,openconnection,table_column,delta):
 
     cur.execute("CREATE TABLE " + str(OutputTable)+str(i)+ " ("+str(table_column)+");")
     openconnection.commit()
-    if upper == max_val:
-        cur.execute("WITH temp AS (SELECT * FROM "+str(InputTable1)+" "
-        " LEFT JOIN "+str(InputTable2)+" ON "+ str(InputTable1)+"."+str(Table1JoinColumn)+" = "+ str(InputTable2)+"."+str(Table2JoinColumn)+") "
-        "INSERT INTO " + str(OutputTable)+str(i) + " SELECT * FROM temp WHERE "+ str(Table1JoinColumn)+" >= "
-        "" + str(float(lower)) + "AND "+str(Table1JoinColumn)+" <= "+str(float(upper))+";")
-        openconnection.commit()
-    else:
-        cur.execute("WITH temp AS (SELECT * FROM " + str(
-            InputTable1) + " LEFT JOIN " + str(InputTable2) + " ON " + str(InputTable1) + "." + str(
-            Table1JoinColumn) + " = " + str(InputTable2) + "." + str(Table2JoinColumn) + ") "
-            "INSERT INTO " + str(OutputTable) + str(i) + " SELECT * FROM temp WHERE " + str(Table1JoinColumn) + " >= "
-             + str(float(lower)) + "AND " + str(Table1JoinColumn) + " < " + str(float(upper))+";")
-        openconnection.commit()
+
+    cur.execute("WITH temp AS (SELECT * FROM "+str(InputTable1)+" LEFT JOIN "+str(InputTable2)+" ON "+ str(InputTable1)+"."+str(Table1JoinColumn)+" = "+ str(InputTable2)+"."+str(Table2JoinColumn)+") "
+        "INSERT INTO " + str(OutputTable)+str(i) + " SELECT * FROM temp LIMIT "+str(int(delta))+" OFFSET "+str(int(lower))) 
+    openconnection.commit()
+    
+    
+    
+    
 
 def ParallelSort (InputTable, SortingColumnName, OutputTable, openconnection):
     cur = openconnection.cursor()
@@ -107,35 +102,26 @@ def ParallelJoin (InputTable1, InputTable2, Table1JoinColumn, Table2JoinColumn, 
      cur.execute('CREATE TABLE '+str(OutputTable)+' ('+str(table_column)+');')
      openconnection.commit()
 
-
-
-     cur.execute("SELECT MAX ("+str(Table1JoinColumn)+") FROM "+str(InputTable1)+";")
+     cur.execute("SELECT COUNT(*) FROM "+str(InputTable1)+";")
      upper1 = cur.fetchall()[0][0]
 
-     cur.execute("SELECT MAX ("+str(Table2JoinColumn)+") FROM "+str(InputTable2)+";")
+     cur.execute("SELECT COUNT(*) FROM "+str(InputTable2)+";")
      upper2 = cur.fetchall()[0][0]
 
      upper = max(upper1,upper2)
-     max_val = upper
 
-     cur.execute("SELECT MIN ("+str(Table1JoinColumn)+") FROM "+str(InputTable1)+";")
-     lower1 = cur.fetchall()[0][0]
-
-     cur.execute("SELECT MIN ("+str(Table2JoinColumn)+") FROM "+str(InputTable2)+";")
-     lower2 = cur.fetchall()[0][0]
-     lower = min(lower1,lower2)
+     lower = 0
 
 
-     delta = float(upper / 5)
+     delta = int(upper / 5)
 
-     upper = lower + delta
      t =[]
      for i in range(1,6):
-         u = threading.Thread(target=Joinhelper, args=(i,cur,lower,InputTable1,InputTable2,Table1JoinColumn,Table2JoinColumn, OutputTable,upper,openconnection,max_val,table_column))
+         u = threading.Thread(target=Joinhelper, args=(i,cur,lower,InputTable1,InputTable2,Table1JoinColumn,Table2JoinColumn, OutputTable,openconnection,table_column,delta))
          u.start()
          t.append(u)
-         lower = upper
-         upper += delta
+         lower += delta
+         
 
      for i in t:
          i.join()
