@@ -28,11 +28,10 @@ def Sorthelper(i,cur,lower,InputTable,SortingColumnName,OutputTable,upper,openco
         openconnection.commit()
 
 
-def Joinhelper(i,cur,lower,InputTable1,InputTable2,Table1JoinColumn,Table2JoinColumn, OutputTable,upper,openconnection,max_val):
+def Joinhelper(i,cur,lower,InputTable1,InputTable2,Table1JoinColumn,Table2JoinColumn, OutputTable,upper,openconnection,max_val,table_column):
 
-    cur.execute("CREATE TABLE " + str(OutputTable)+str(i)+ " (data1 varchar,data2 varchar,data3 varchar, data4 varchar, data5 varchar, data6 varchar);")
+    cur.execute("CREATE TABLE " + str(OutputTable)+str(i)+ " ("+str(table_column)+");")
     openconnection.commit()
-    print(i)
     if upper == max_val:
         cur.execute("WITH temp AS (SELECT * FROM "+str(InputTable1)+" "
         " LEFT JOIN "+str(InputTable2)+" ON "+ str(InputTable1)+"."+str(Table1JoinColumn)+" = "+ str(InputTable2)+"."+str(Table2JoinColumn)+") "
@@ -49,7 +48,8 @@ def Joinhelper(i,cur,lower,InputTable1,InputTable2,Table1JoinColumn,Table2JoinCo
 
 def ParallelSort (InputTable, SortingColumnName, OutputTable, openconnection):
     cur = openconnection.cursor()
-    cur.execute("CREATE TABLE "+str(OutputTable)+" (data real);")
+
+    cur.execute("CREATE TABLE "+str(OutputTable)+" ("+str(SortingColumnName)+" real);")
     openconnection.commit()
     cur.execute("SELECT MAX ("+str(SortingColumnName)+") FROM "+str(InputTable)+";")
     upper = cur.fetchall()[0][0]
@@ -82,8 +82,33 @@ def ParallelJoin (InputTable1, InputTable2, Table1JoinColumn, Table2JoinColumn, 
     #same process
     #range parition for table one and table 2, 5 processors per table
      cur = openconnection.cursor()
-     cur.execute("CREATE TABLE "+str(OutputTable)+" (data1 varchar,data2 varchar,data3 varchar, data4 varchar, data5 varchar, data6 varchar);")
+
+
+     cur.execute("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = '"+str(InputTable1)+"';")
+     size_1 = cur.fetchall()[0][0]
+
+     table_column = ""
+     for i in range(size_1):
+         cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = '"+str(InputTable1)+"';")
+         temp = cur.fetchall()[i][0]
+         table_column += str(temp)+" varchar, "
+
+     cur.execute("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = '" + str(InputTable2) + "';")
+     size_2 = cur.fetchall()[0][0]
+
+     for i in range(size_2):
+         cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = '" + str(InputTable2) + "';")
+         temp = cur.fetchall()[i][0]
+         if i != size_2 - 1:
+            table_column += str(temp) + " varchar, "
+         else:
+            table_column += str(temp) + " varchar"
+
+     cur.execute('CREATE TABLE '+str(OutputTable)+' ('+str(table_column)+');')
      openconnection.commit()
+
+
+
      cur.execute("SELECT MAX ("+str(Table1JoinColumn)+") FROM "+str(InputTable1)+";")
      upper1 = cur.fetchall()[0][0]
 
@@ -106,7 +131,7 @@ def ParallelJoin (InputTable1, InputTable2, Table1JoinColumn, Table2JoinColumn, 
      upper = lower + delta
      t =[]
      for i in range(1,6):
-         u = threading.Thread(target=Joinhelper, args=(i,cur,lower,InputTable1,InputTable2,Table1JoinColumn,Table2JoinColumn, OutputTable,upper,openconnection,max_val))
+         u = threading.Thread(target=Joinhelper, args=(i,cur,lower,InputTable1,InputTable2,Table1JoinColumn,Table2JoinColumn, OutputTable,upper,openconnection,max_val,table_column))
          u.start()
          t.append(u)
          lower = upper
